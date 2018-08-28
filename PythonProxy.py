@@ -81,7 +81,9 @@ Qual a diferença entre um proxy Elite, Anónimo e Transparente?
 
 """
 
-import socket, thread, select
+import select
+import socket
+import _thread
 
 __version__ = '0.1.0 Draft 1'
 BUFLEN = 8192
@@ -91,7 +93,7 @@ HTTPVER = 'HTTP/1.1'
 class ConnectionHandler:
     def __init__(self, connection, address, timeout):
         self.client = connection
-        self.client_buffer = ''
+        self.client_buffer = b''
         self.timeout = timeout
         self.method, self.path, self.protocol = self.get_base_header()
         if self.method=='CONNECT':
@@ -105,19 +107,20 @@ class ConnectionHandler:
     def get_base_header(self):
         while 1:
             self.client_buffer += self.client.recv(BUFLEN)
-            end = self.client_buffer.find('\n')
+            end = self.client_buffer.find(b'\n')
             if end!=-1:
                 break
-        print '%s'%self.client_buffer[:end]#debug
-        data = (self.client_buffer[:end+1]).split()
+        print(self.client_buffer[:end].decode('ascii')) # debug
+        data = self.client_buffer[:end+1].decode('ascii').split()
         self.client_buffer = self.client_buffer[end+1:]
         return data
 
     def method_CONNECT(self):
         self._connect_target(self.path)
-        self.client.send(HTTPVER+' 200 Connection established\n'+
-                         'Proxy-agent: %s\n\n'%VERSION)
-        self.client_buffer = ''
+        self.client.send(f'{HTTPVER} 200 Connection established\n'
+                         f'Proxy-agent: {VERSION}\n\n'
+                         .encode('ascii'))
+        self.client_buffer = b''
         self._read_write()        
 
     def method_others(self):
@@ -126,9 +129,10 @@ class ConnectionHandler:
         host = self.path[:i]        
         path = self.path[i:]
         self._connect_target(host)
-        self.target.send('%s %s %s\n'%(self.method, path, self.protocol)+
-                         self.client_buffer)
-        self.client_buffer = ''
+        self.target.send(f'{self.method} {path} {self.protocol}\n'
+                         .encode('ascii'))
+        self.target.send(self.client_buffer)
+        self.client_buffer = b''
         self._read_write()
 
     def _connect_target(self, host):
@@ -172,10 +176,10 @@ def start_server(host='localhost', port=8080, IPv6=False, timeout=60,
         soc_type=socket.AF_INET
     soc = socket.socket(soc_type)
     soc.bind((host, port))
-    print "Serving on %s:%d."%(host, port)#debug
+    print(f"Serving on {host}:{port}.") # debug
     soc.listen(0)
     while 1:
-        thread.start_new_thread(handler, soc.accept()+(timeout,))
+        _thread.start_new_thread(handler, soc.accept()+(timeout,))
 
 if __name__ == '__main__':
     start_server()

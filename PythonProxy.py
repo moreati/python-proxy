@@ -90,6 +90,11 @@ BUFLEN = 8192
 VERSION = 'Python Proxy/'+__version__
 HTTPVER = 'HTTP/1.1'
 
+REDIRECTIONS = {
+    'localhost': '127.0.0.1',
+}
+
+
 class ConnectionHandler:
     def __init__(self, connection, address, timeout):
         self.client = connection
@@ -142,7 +147,15 @@ class ConnectionHandler:
             host = host[:i]
         else:
             port = 80
-        (soc_family, _, _, _, address) = socket.getaddrinfo(host, port)[0]
+
+        # Override selected DNS lookups
+        if host in REDIRECTIONS:
+            soc_family = socket.AF_INET
+            address = (REDIRECTIONS[host], port)
+        else:
+            addrinfo = socket.getaddrinfo(host, port)
+            soc_family, _, _, _, address = addrinfo[0]
+
         self.target = socket.socket(soc_family)
         self.target.connect(address)
 
